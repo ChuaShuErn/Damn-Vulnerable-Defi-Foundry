@@ -7,27 +7,27 @@ import "forge-std/Test.sol";
 import {SideEntranceLenderPool} from "../../../src/Contracts/side-entrance/SideEntranceLenderPool.sol";
 
 contract SideEntrance is Test {
-    uint256 internal constant ETHER_IN_POOL = 1_000e18;
+    uint256 internal constant _ETHER_IN_POOL = 1_000e18;
 
-    Utilities internal utils;
-    SideEntranceLenderPool internal sideEntranceLenderPool;
-    address payable internal attacker;
+    Utilities internal _utils;
+    SideEntranceLenderPool internal _sideEntranceLenderPool;
+    address payable internal _attacker;
     uint256 public attackerInitialEthBalance;
 
     function setUp() public {
-        utils = new Utilities();
-        address payable[] memory users = utils.createUsers(1);
-        attacker = users[0];
-        vm.label(attacker, "Attacker");
+        _utils = new Utilities();
+        address payable[] memory users = _utils.createUsers(1);
+        _attacker = users[0];
+        vm.label(_attacker, "Attacker");
 
-        sideEntranceLenderPool = new SideEntranceLenderPool();
-        vm.label(address(sideEntranceLenderPool), "Side Entrance Lender Pool");
+        _sideEntranceLenderPool = new SideEntranceLenderPool();
+        vm.label(address(_sideEntranceLenderPool), "Side Entrance Lender Pool");
 
-        vm.deal(address(sideEntranceLenderPool), ETHER_IN_POOL);
+        vm.deal(address(_sideEntranceLenderPool), _ETHER_IN_POOL);
 
-        assertEq(address(sideEntranceLenderPool).balance, ETHER_IN_POOL);
+        assertEq(address(_sideEntranceLenderPool).balance, _ETHER_IN_POOL);
 
-        attackerInitialEthBalance = address(attacker).balance;
+        attackerInitialEthBalance = address(_attacker).balance;
 
         console.log(unicode"🧨 Let's see if you can break it... 🧨");
     }
@@ -37,15 +37,20 @@ contract SideEntrance is Test {
          * EXPLOIT START *
          */
 
+        //What do we know
+        // LenderPool has 1_000e18 ether
+        // our attacker is users[0]
+        //we need to drain lenderpool
+
         /**
          * EXPLOIT END *
          */
-        validation();
+        _validation();
         console.log(unicode"\n🎉 Congratulations, you can go to the next level! 🎉");
     }
 
-    function validation() internal {
-        assertEq(address(sideEntranceLenderPool).balance, 0);
-        assertGt(attacker.balance, attackerInitialEthBalance);
+    function _validation() internal {
+        assertEq(address(_sideEntranceLenderPool).balance, 0);
+        assertGt(_attacker.balance, attackerInitialEthBalance);
     }
 }
