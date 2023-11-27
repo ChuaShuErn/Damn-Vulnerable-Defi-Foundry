@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import {Address} from "openzeppelin-contracts/utils/Address.sol";
+import {console2} from "forge-std/console2.sol";
 
 interface IFlashLoanEtherReceiver {
     function execute() external payable;
@@ -20,6 +21,8 @@ contract SideEntranceLenderPool {
     error FlashLoanHasNotBeenPaidBack();
 
     function deposit() external payable {
+        console2.log("deposit entered");
+        console2.log("msg.value:", msg.value);
         balances[msg.sender] += msg.value;
     }
 
@@ -30,11 +33,13 @@ contract SideEntranceLenderPool {
     }
 
     function flashLoan(uint256 amount) external {
+        //mixed accounting
+        // say 100
         uint256 balanceBefore = address(this).balance;
         if (balanceBefore < amount) revert NotEnoughETHInPool();
 
         IFlashLoanEtherReceiver(msg.sender).execute{value: amount}();
-
+        //how can we pass this if statement?
         if (address(this).balance < balanceBefore) {
             revert FlashLoanHasNotBeenPaidBack();
         }
