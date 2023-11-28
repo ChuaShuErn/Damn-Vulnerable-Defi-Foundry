@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
+import {console2} from "forge-std/console2.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.sol";
 
@@ -28,6 +29,9 @@ contract UnstoppableLender is ReentrancyGuard {
         if (amount == 0) revert MustDepositOneTokenMinimum();
         // Transfer token from sender. Sender must have first approved them.
         damnValuableToken.transferFrom(msg.sender, address(this), amount);
+        //state updated here
+        // balance of pool is only updated via depositToken
+        // if i update with IERC20 transfer it will be ok
         poolBalance = poolBalance + amount;
     }
 
@@ -39,11 +43,8 @@ contract UnstoppableLender is ReentrancyGuard {
 
         // Ensured by the protocol via the `depositTokens` function
         if (poolBalance != balanceBefore) revert AssertionViolated();
-
         damnValuableToken.transfer(msg.sender, borrowAmount);
-
         IReceiver(msg.sender).receiveTokens(address(damnValuableToken), borrowAmount);
-
         uint256 balanceAfter = damnValuableToken.balanceOf(address(this));
         if (balanceAfter < balanceBefore) revert FlashLoanHasNotBeenPaidBack();
     }
