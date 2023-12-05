@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+import {console2} from "forge-std/console2.sol";
 import {Address} from "openzeppelin-contracts/utils/Address.sol";
 
 /**
@@ -21,6 +22,10 @@ contract FlashLoanReceiver {
 
     // Function called by the pool during flash loan
     function receiveEther(uint256 fee) public payable {
+        console2.log("receive ether in flashloanreceiver entered");
+        console2.log("fee:", fee / 1 ether);
+        console2.log("msg.sender:", msg.sender);
+        console2.log("msg.value:", msg.value);
         if (msg.sender != pool) revert SenderMustBePool();
 
         uint256 amountToBeRepaid = msg.value + fee;

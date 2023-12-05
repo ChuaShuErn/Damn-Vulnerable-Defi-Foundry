@@ -20,7 +20,7 @@ contract LenderPoolAttacker {
     }
 
     // Step 1 fail the transfer
-    // Step 2 target is dmv
+    // Step 2 target is DVT Contract
     // Step 3 function call to approve Attacker Contract as the Lender Pool's Spender
     // Step 4 After Flash Loan Scope, do transferFrom Pool to Attacker Contract
     // Step 5 Transfer from Attacker Contract to Wallet
