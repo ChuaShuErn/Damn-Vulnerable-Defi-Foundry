@@ -5,6 +5,7 @@ import {ReentrancyGuard} from "openzeppelin-contracts/security/ReentrancyGuard.s
 import {ERC20Snapshot} from "openzeppelin-contracts/token/ERC20/extensions/ERC20Snapshot.sol";
 import {Address} from "openzeppelin-contracts/utils/Address.sol";
 import {SimpleGovernance} from "./SimpleGovernance.sol";
+import {console2} from "forge-std/console2.sol";
 
 /**
  * @title SelfiePool
@@ -32,8 +33,10 @@ contract SelfiePool is ReentrancyGuard {
         token = ERC20Snapshot(tokenAddress);
         governance = SimpleGovernance(governanceAddress);
     }
+    //we need a flash loan of DVT
 
     function flashLoan(uint256 borrowAmount) external nonReentrant {
+        console2.log("flashLoan entered");
         uint256 balanceBefore = token.balanceOf(address(this));
         if (balanceBefore < borrowAmount) revert NotEnoughTokensInPool();
 
@@ -45,8 +48,10 @@ contract SelfiePool is ReentrancyGuard {
         uint256 balanceAfter = token.balanceOf(address(this));
 
         if (balanceAfter < balanceBefore) revert FlashLoanHasNotBeenPaidBack();
+        console2.log("flashLoan ended");
     }
 
+    // we have to call this
     function drainAllFunds(address receiver) external onlyGovernance {
         uint256 amount = token.balanceOf(address(this));
         token.transfer(receiver, amount);
